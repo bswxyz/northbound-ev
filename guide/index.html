@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>How Northbound was built — the guide</title>
+<meta name="description" content="Build notes for Northbound: a three.js topographic terrain a glowing route line draws itself across, plus the charge-stop timeline planner." />
+<meta name="theme-color" content="#12180f" />
+<meta name="color-scheme" content="dark" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root{--bg:#12180f;--panel:#1a2115;--ink:#f0f2e9;--dim:#a7b199;--faint:#69735c;--green:#6cff6a;--earth:#c98a4b;--line:rgba(240,242,233,.10);--max:760px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:"Inter",system-ui,sans-serif;line-height:1.64;-webkit-font-smoothing:antialiased}
+a{color:var(--green);text-decoration:none}a:hover{text-decoration:underline}
+.wrap{max-width:var(--max);margin:0 auto;padding:clamp(28px,6vw,80px) clamp(18px,5vw,32px)}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:3rem;font-family:"JetBrains Mono",monospace;font-size:.74rem;letter-spacing:.1em;color:var(--dim)}
+.top a{color:var(--dim)}.top a:hover{color:var(--green)}
+.ey{font-family:"JetBrains Mono",monospace;font-size:.7rem;letter-spacing:.22em;text-transform:uppercase;color:var(--green);display:block;margin-bottom:2.2rem}
+h1{font-family:"Bricolage Grotesque",sans-serif;font-weight:800;font-size:clamp(2.2rem,6vw,3.6rem);line-height:1.02;margin-bottom:.6rem;letter-spacing:-.03em}
+h1 em{color:var(--green);font-style:normal}
+.sub{color:var(--dim);font-size:1.1rem;margin-bottom:3rem}
+h2{font-family:"Bricolage Grotesque",sans-serif;font-weight:700;font-size:clamp(1.5rem,3.6vw,2rem);margin:2.9rem 0 1rem;letter-spacing:-.02em}
+p{color:#d5dcc8;margin:1rem 0}
+strong{color:var(--ink);font-weight:600}
+ul{margin:1rem 0 1rem 1.1rem;color:#d5dcc8}li{margin:.45rem 0}
+pre{background:#0d120a;border:1px solid var(--line);border-radius:12px;padding:16px 18px;overflow-x:auto;margin:1.2rem 0;font-family:"JetBrains Mono",monospace;font-size:.8rem;line-height:1.66;color:#d5dcc8}
+code{font-family:"JetBrains Mono",monospace;font-size:.86em;color:var(--green)}
+pre code{color:inherit}
+.rule{height:1px;background:var(--line);margin:3rem 0;border:0}
+.back{display:inline-block;margin-top:2.5rem;font-family:"JetBrains Mono",monospace;font-size:.8rem}
+.note{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:1.4rem 0;color:var(--dim);font-size:.94rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a href="../">← Northbound</a>
+    <span>THE GUIDE · how it was built</span>
+  </div>
+
+  <span class="ey">Design showcase · build notes</span>
+  <h1>Drawing a road across a <em>mountain,</em> in a browser.</h1>
+  <p class="sub">Northbound looks like a native EV trip planner, but it's one HTML file, one stylesheet
+    and one module — no framework, no build step. The whole identity rests on one moment: a route line
+    drawing itself across a 3D topographic map.</p>
+
+  <h2>The idea</h2>
+  <p>Every EV routing app shows you the same thing: a flat 2D map with pins. Northbound's bet is that the
+    thing you're actually anxious about isn't the map — it's the <em>landscape</em>. The climb that eats
+    your range. The gap between chargers over a pass. So we made the terrain the hero, gave it real
+    elevation, and let the route draw itself across it while a plain-English planner answers the only
+    question that matters: <strong>what battery will I arrive with?</strong></p>
+  <p>The interaction layer borrows two patterns from shipped apps (Rivian, Tesla, Google Maps, My BMW):
+    a <strong>route-summary header</strong> — "512&nbsp;km · 2 stops · arrive 6:40pm" — and a vertical
+    <strong>charge-stop timeline</strong> with drive segments between stops. On top of those we invented a
+    curation layer the real apps don't have: good coffee, a short trail, a fast plug.</p>
+
+  <h2>The stack</h2>
+  <ul>
+    <li><strong>three.js 0.160</strong> (ES-module CDN, via an import map) for the terrain, the route
+      tube and the pulsing charging nodes. Loaded with a guarded dynamic <code>import()</code>.</li>
+    <li><strong>Plain HTML / CSS / vanilla JS</strong> for everything else — reveals, counters, the range
+      ring, and the interactive corridor planner. No bundler.</li>
+    <li><strong>Bricolage&nbsp;Grotesque / Inter / JetBrains&nbsp;Mono</strong> — a characterful grotesque
+      for display, a neutral workhorse for body, a mono for coordinates, kW and range numbers.</li>
+  </ul>
+
+  <h2>Signature technique — the topographic terrain + self-drawing route</h2>
+  <p>The terrain is a <code>PlaneGeometry</code> displaced by fractal value-noise, plus two Gaussian bumps
+    so there are real ridges for the route to weave between. Each vertex carries a normalised height so a
+    shader can paint <strong>elevation contour lines</strong> — the topographic look — straight in the
+    fragment stage:</p>
+  <pre><code>// fragment — contour bands from normalised height vH
+float f = vH * 15.0;
+float w = fwidth(f);                      // screen-space derivative
+float line = abs(fract(f - 0.5) - 0.5) / max(w, 1e-4);
+float contour = 1.0 - clamp(line, 0.0, 1.0);
+vec3 col = mix(base, uContour, contour * 0.8);  // earth base, sage lines
+col = mix(col, uBg, vFog);                 // fade into the forest ink</code></pre>
+  <p>The route is a <code>CatmullRomCurve3</code> whose control points sample the same height function, so
+    the line hugs the surface. It's a <code>TubeGeometry</code>, and it <em>draws itself</em> by animating
+    the geometry's draw range from zero to full — no shaders, no line libraries:</p>
+  <pre><code>const dp = clamp((now - start - 500) / 2600, 0, 1);
+const draw = 1 - Math.pow(1 - dp, 3);      // ease-out
+tubeGeo.setDrawRange(0, Math.floor(tubeCount * draw));
+// charging nodes switch on as the line passes their curve position
+const on = draw &gt;= node.u - 0.02;</code></pre>
+  <p>Scrolling advances the camera along the corridor (the eye and look-at targets interpolate down the
+    valley), with a slow idle drift when you're parked at the top. A second, fatter additive tube gives the
+    line its electric-green glow.</p>
+
+  <h2>Details that matter</h2>
+  <ul>
+    <li><strong>Feature-detected, reduced-motion-aware.</strong> If WebGL is missing, the CDN is blocked,
+      or the visitor prefers reduced motion, three.js never loads — a hand-built <strong>SVG topo map</strong>
+      with the route already drawn stays on screen. The canvas only fades in over it once terrain is live.</li>
+    <li><strong>The planner is real.</strong> Three corridors (Coastal / Alpine / Desert) are data; picking
+      one re-renders the summary header, the timeline cards, the origin/destination and the range ring. With
+      JavaScript off, the default Alpine route is fully readable HTML.</li>
+    <li><strong>Cheap on the GPU.</strong> DPR capped at 2, the render loop pauses on
+      <code>visibilitychange</code>, and everything disposes on <code>pagehide</code>. No console errors.</li>
+    <li><strong>The range ring is honest about being illustrative</strong> — see the README's demo-vs-real map.</li>
+  </ul>
+
+  <h2>Ship it on GitHub Pages</h2>
+  <p>Every path is relative and there's no build, so deploying is three commands:</p>
+  <pre><code>gh repo create bswxyz/northbound-ev --public --source . --push
+gh api --method POST /repos/bswxyz/northbound-ev/pages \
+  -f 'source[branch]=main' -f 'source[path]=/'
+# live at https://bswxyz.github.io/northbound-ev/ in ~2 min</code></pre>
+  <p>A <code>.nojekyll</code> file keeps Pages from touching the folder structure. The three.js import map
+    resolves from jsDelivr at runtime, so there's nothing to bundle.</p>
+
+  <hr class="rule" />
+  <p style="color:var(--faint);font-size:.9rem">Northbound is a design-showcase concept — the routing,
+    charge curves and charger data are modelled for the demo, not wired to a live network. See the
+    repository README for the full demo-vs-real map.</p>
+  <a class="back" href="../">← Back to Northbound</a>
+</div>
+</body>
+</html>

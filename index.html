@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<script>document.documentElement.classList.add('js')</script>
+<title>Northbound — EV road-trip &amp; charging planner</title>
+<meta name="description" content="Northbound plans long EV road trips around real charging stops — topographic routes, range you can trust, and charge stops worth pulling over for. Range anxiety, meet the horizon." />
+<meta name="theme-color" content="#12180f" />
+<meta name="color-scheme" content="dark" />
+<meta property="og:title" content="Northbound — EV road-trip & charging planner" />
+<meta property="og:description" content="Topographic routes, honest range, and charge stops worth pulling over for. Range anxiety, meet the horizon." />
+<meta property="og:type" content="website" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+
+<!-- ===== fixed terrain: three.js mounts a canvas here; SVG is the guaranteed fallback ===== -->
+<div class="terrain" id="terrain" aria-hidden="true">
+  <svg class="terrain-fallback" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Topographic map with an electric route line crossing two ridges and three charging nodes.">
+    <defs>
+      <linearGradient id="route" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#3fb84a"/><stop offset="1" stop-color="#6cff6a"/>
+      </linearGradient>
+      <radialGradient id="node" cx="50%" cy="50%" r="50%">
+        <stop offset="0" stop-color="#6cff6a" stop-opacity="1"/>
+        <stop offset="55%" stop-color="#6cff6a" stop-opacity=".35"/>
+        <stop offset="100%" stop-color="#6cff6a" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <!-- contour rings, ridge one -->
+    <g fill="none" stroke="#69735c" stroke-opacity=".5">
+      <ellipse cx="330" cy="300" rx="360" ry="210"/>
+      <ellipse cx="330" cy="300" rx="300" ry="172" stroke="#7f8a6b"/>
+      <ellipse cx="330" cy="300" rx="240" ry="136" stroke="#8f9a78"/>
+      <ellipse cx="330" cy="300" rx="182" ry="102" stroke="#a08f5f"/>
+      <ellipse cx="330" cy="300" rx="126" ry="70" stroke="#c98a4b"/>
+      <ellipse cx="330" cy="300" rx="72" ry="40" stroke="#d89a58"/>
+      <ellipse cx="330" cy="300" rx="30" ry="16" stroke="#e6a962"/>
+    </g>
+    <!-- contour rings, ridge two -->
+    <g fill="none" stroke="#69735c" stroke-opacity=".5">
+      <ellipse cx="900" cy="560" rx="330" ry="220"/>
+      <ellipse cx="900" cy="560" rx="270" ry="180" stroke="#7f8a6b"/>
+      <ellipse cx="900" cy="560" rx="210" ry="140" stroke="#8f9a78"/>
+      <ellipse cx="900" cy="560" rx="150" ry="100" stroke="#a08f5f"/>
+      <ellipse cx="900" cy="560" rx="94" ry="62" stroke="#c98a4b"/>
+      <ellipse cx="900" cy="560" rx="44" ry="28" stroke="#d89a58"/>
+    </g>
+    <!-- the route -->
+    <path d="M70 700 C 240 620, 250 430, 360 380 S 560 360, 640 300 S 760 150, 900 210 S 1120 320, 1160 180"
+          fill="none" stroke="url(#route)" stroke-width="4" stroke-linecap="round" opacity=".95"/>
+    <path d="M70 700 C 240 620, 250 430, 360 380 S 560 360, 640 300 S 760 150, 900 210 S 1120 320, 1160 180"
+          fill="none" stroke="#6cff6a" stroke-width="12" stroke-linecap="round" opacity=".14"/>
+    <!-- charging nodes -->
+    <g>
+      <circle cx="360" cy="380" r="34" fill="url(#node)"/><circle cx="360" cy="380" r="6" fill="#6cff6a"/>
+      <circle cx="900" cy="210" r="34" fill="url(#node)"/><circle cx="900" cy="210" r="6" fill="#6cff6a"/>
+    </g>
+    <!-- start / end -->
+    <circle cx="70" cy="700" r="7" fill="#a7b199"/>
+    <circle cx="1160" cy="180" r="8" fill="#6cff6a" stroke="#12180f" stroke-width="2"/>
+  </svg>
+</div>
+<div class="scrim" aria-hidden="true"></div>
+
+<!-- ===== nav ===== -->
+<header class="nav">
+  <a class="brand" href="./" aria-label="Northbound home">
+    <span class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 2 L15 13 L12 11 L9 13 Z" fill="currentColor"/><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.4"/></svg>
+    </span>
+    <span>Northbound</span>
+  </a>
+  <nav class="nav-links" aria-label="Primary">
+    <a href="#plan">Plan</a>
+    <a href="#network">Network</a>
+    <a href="#stops">Stops</a>
+    <a href="./guide/">Guide</a>
+    <a class="nav-cta" href="#start">Start a trip</a>
+  </nav>
+</header>
+
+<main>
+  <!-- ===== hero: topo terrain + route + headline ===== -->
+  <section class="hero" id="top">
+    <div class="hero-copy">
+      <p class="eyebrow reveal">EV road-trip planner · charging network</p>
+      <h1 class="hero-title">
+        <span class="line"><span>Range anxiety,</span></span>
+        <span class="line"><span>meet the <em>horizon.</em></span></span>
+      </h1>
+      <p class="hero-sub reveal">Northbound plans the long way north around the chargers that actually work —
+        reading the terrain, your battery curve, and where the good coffee is. You watch the road draw
+        itself across the map. We'll handle the electrons.</p>
+      <div class="hero-actions reveal">
+        <a class="btn btn-primary" href="#plan">Plan a route</a>
+        <a class="btn btn-ghost" href="#network">See the network →</a>
+      </div>
+    </div>
+
+    <div class="route-chip reveal" role="group" aria-label="Featured route summary">
+      <span class="rc-lead"><b>512&nbsp;km</b> <span>· 2 stops · arrive 6:40pm</span></span>
+      <span class="rc-div" aria-hidden="true"></span>
+      <span class="rc-stat"><b>5h 48m</b><span>drive</span></span>
+      <span class="rc-stat"><b>41m</b><span>charge</span></span>
+      <span class="rc-stat"><b>+1,240m</b><span>climb</span></span>
+    </div>
+
+    <div class="scroll-hint reveal" aria-hidden="true">
+      <span class="sh-rail"></span><span>Scroll · the route advances</span>
+    </div>
+  </section>
+
+  <!-- ===== trip planner band ===== -->
+  <section class="band" id="plan">
+    <div class="section-head">
+      <p class="kicker reveal">[ Plan a trip ]</p>
+      <h2 class="reveal">From your door to the last switchback.</h2>
+      <p class="lede reveal">Pick a corridor. Northbound lays in the charge stops, hugs the elevation, and
+        gives you the one number that matters — <strong>the battery you'll roll in on.</strong></p>
+    </div>
+
+    <div class="planner reveal" id="planner">
+      <!-- origin -> destination + route presets -->
+      <div class="planner-top">
+        <div class="od" id="od">
+          <div class="od-row from">
+            <span class="od-pin" aria-hidden="true"></span>
+            <span class="od-label">From</span>
+            <span class="od-place" id="odFrom">Portland, OR</span>
+            <span class="od-coord mono" id="odFromCoord">45.52°N 122.68°W</span>
+          </div>
+          <span class="od-line" aria-hidden="true"></span>
+          <div class="od-row to">
+            <span class="od-pin" aria-hidden="true"></span>
+            <span class="od-label">To</span>
+            <span class="od-place" id="odTo">Smith Rock, OR</span>
+            <span class="od-coord mono" id="odToCoord">44.36°N 121.14°W</span>
+          </div>
+        </div>
+        <div class="routes">
+          <span class="routes-lbl">Corridor</span>
+          <div class="route-tabs" id="routeTabs" role="tablist" aria-label="Choose a route corridor">
+            <button class="route-tab" role="tab" data-route="coastal" aria-selected="false">Coastal 101</button>
+            <button class="route-tab" role="tab" data-route="alpine" aria-selected="true">Alpine Pass</button>
+            <button class="route-tab" role="tab" data-route="desert" aria-selected="false">High Desert</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- route summary header (the nav pattern) -->
+      <div class="summary" id="summary">
+        <div class="summary-lead">
+          <span class="sl-km mono" id="sumKm">512 km</span>
+          <span class="sl-dot">·</span>
+          <span class="sl-stops" id="sumStops">2 stops</span>
+          <span class="sl-dot">·</span>
+          <span class="sl-arrive" id="sumArrive">arrive 6:40pm</span>
+        </div>
+        <div class="summary-stats" id="sumStats">
+          <div class="ss"><b>5h 48m</b><span>drive time</span></div>
+          <div class="ss"><b>41 min</b><span>charge time</span></div>
+          <div class="ss"><b>+1,240 m</b><span>elevation gain</span></div>
+          <div class="ss"><b>62%</b><span>battery on arrival</span></div>
+        </div>
+      </div>
+
+      <!-- charge-stop timeline (default: Alpine Pass; JS swaps on corridor change) -->
+      <div class="timeline">
+        <div class="tl" id="timeline">
+          <div class="tl-node">
+            <span class="tl-dot" aria-hidden="true"></span>
+            <div class="tl-place"><b>Portland, OR</b><span class="tl-coord mono">45.52°N 122.68°W</span><span class="tl-time">12:11pm</span></div>
+          </div>
+          <div class="tl-node">
+            <div class="tl-drive"><svg viewBox="0 0 24 24" fill="none"><path d="M4 16h16M6 16l1.5-5A2 2 0 0 1 9.4 9.6h5.2a2 2 0 0 1 1.9 1.4L18 16M7.5 19a1.3 1.3 0 1 0 0-2.6 1.3 1.3 0 0 0 0 2.6Zm9 0a1.3 1.3 0 1 0 0-2.6 1.3 1.3 0 0 0 0 2.6Z" stroke="currentColor" stroke-width="1.4"/></svg>Drive 2h 18m · 210 km</div>
+            <span class="tl-dot charge" aria-hidden="true"></span>
+            <div class="tl-place"><b>Cascade Locks</b><span class="tl-coord mono">45.67°N 121.90°W</span><span class="tl-time">2:29pm</span></div>
+            <div class="stopcard">
+              <div class="stopcard-top">
+                <span class="stopcard-net">Electrify America · Columbia Gorge</span>
+                <span class="stopcard-badge grade">A</span>
+                <span class="stopcard-dwell mono"><svg viewBox="0 0 24 24" fill="none"><path d="M13 2 4 14h7l-1 8 9-12h-7z" fill="currentColor"/></svg>18 min</span>
+              </div>
+              <div class="stopcard-meta mono">
+                <span>CCS · NACS</span><span>350 kW max</span><span class="avail">6 of 8 available</span><span>197 kW avg</span>
+              </div>
+              <div class="stopcard-tags">
+                <span class="tag"><svg viewBox="0 0 24 24" fill="none"><path d="M4 9h12v4a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V9Zm12 1h2a2 2 0 0 1 0 4h-2M6 3v2M9 3v2M12 3v2" stroke="currentColor" stroke-width="1.4"/></svg>Third-wave coffee</span>
+                <span class="tag"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3 4 20h16L12 3Zm0 6-3 7m3-7 3 7" stroke="currentColor" stroke-width="1.4"/></svg>Waterfall trail · 900 m</span>
+              </div>
+            </div>
+          </div>
+          <div class="tl-node">
+            <div class="tl-drive"><svg viewBox="0 0 24 24" fill="none"><path d="M4 16h16M6 16l1.5-5A2 2 0 0 1 9.4 9.6h5.2a2 2 0 0 1 1.9 1.4L18 16M7.5 19a1.3 1.3 0 1 0 0-2.6 1.3 1.3 0 0 0 0 2.6Zm9 0a1.3 1.3 0 1 0 0-2.6 1.3 1.3 0 0 0 0 2.6Z" stroke="currentColor" stroke-width="1.4"/></svg>Drive 1h 44m · 176 km</div>
+            <span class="tl-dot charge" aria-hidden="true"></span>
+            <div class="tl-place"><b>Bend Rooftop</b><span class="tl-coord mono">44.06°N 121.31°W</span><span class="tl-time">4:31pm</span></div>
+            <div class="stopcard">
+              <div class="stopcard-top">
+                <span class="stopcard-net">Rivian Adventure Network</span>
+                <span class="stopcard-badge grade">A</span>
+                <span class="stopcard-badge adapter">Adapter needed</span>
+                <span class="stopcard-dwell mono"><svg viewBox="0 0 24 24" fill="none"><path d="M13 2 4 14h7l-1 8 9-12h-7z" fill="currentColor"/></svg>23 min</span>
+              </div>
+              <div class="stopcard-meta mono">
+                <span>NACS</span><span>300 kW max</span><span class="avail">5 of 6 available</span><span>Plug &amp; Charge</span>
+              </div>
+              <div class="stopcard-tags">
+                <span class="tag"><svg viewBox="0 0 24 24" fill="none"><path d="M4 9h12v4a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V9Zm12 1h2a2 2 0 0 1 0 4h-2M6 3v2M9 3v2M12 3v2" stroke="currentColor" stroke-width="1.4"/></svg>Rooftop espresso</span>
+                <span class="tag fast"><svg viewBox="0 0 24 24" fill="none"><path d="M13 2 4 14h7l-1 8 9-12h-7z" fill="currentColor"/></svg>10–80% in 23 min</span>
+              </div>
+            </div>
+          </div>
+          <div class="tl-node">
+            <div class="tl-drive"><svg viewBox="0 0 24 24" fill="none"><path d="M4 16h16M6 16l1.5-5A2 2 0 0 1 9.4 9.6h5.2a2 2 0 0 1 1.9 1.4L18 16M7.5 19a1.3 1.3 0 1 0 0-2.6 1.3 1.3 0 0 0 0 2.6Zm9 0a1.3 1.3 0 1 0 0-2.6 1.3 1.3 0 0 0 0 2.6Z" stroke="currentColor" stroke-width="1.4"/></svg>Drive 1h 46m · 126 km</div>
+            <span class="tl-dot end" aria-hidden="true"></span>
+            <div class="tl-place"><b>Smith Rock, OR</b><span class="tl-coord mono">44.36°N 121.14°W</span><span class="tl-time">6:40pm</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== network stats band ===== -->
+  <section class="band" id="network">
+    <div class="section-head">
+      <p class="kicker reveal">[ The network ]</p>
+      <h2 class="reveal">Every plug, ranked. Every route, driven.</h2>
+      <p class="lede reveal">We don't just show you chargers — we score them on reliability, real-world
+        speed and the two minutes it takes to actually start a session.</p>
+    </div>
+
+    <div class="stats reveal stagger" aria-label="Network statistics">
+      <div class="stat"><span class="s-num" data-to="84120" data-dec="0">0</span><span class="s-suf">plugs</span><span class="s-lbl">chargers mapped &amp; scored</span></div>
+      <div class="stat"><span class="s-num" data-to="1960" data-dec="0">0</span><span class="s-suf">routes</span><span class="s-lbl">corridors planned</span></div>
+      <div class="stat"><span class="s-num" data-to="12" data-dec="0">0</span><span class="s-suf">min</span><span class="s-lbl">avg detour per charge</span></div>
+      <div class="stat"><span class="s-num" data-to="3.4" data-dec="1">0</span><span class="s-suf">M km</span><span class="s-lbl">planned this year</span></div>
+    </div>
+
+    <!-- range ring feature tile -->
+    <div class="ring-band reveal">
+      <div class="ring" role="img" aria-label="Projected battery on arrival: 62 percent.">
+        <svg viewBox="0 0 172 172" width="172" height="172">
+          <circle class="ring-track" cx="86" cy="86" r="74"></circle>
+          <circle class="ring-fill" id="ringFill" cx="86" cy="86" r="74"
+            stroke-dasharray="464.9" stroke-dashoffset="464.9"></circle>
+        </svg>
+        <div class="ring-center"><b id="ringPct">62%</b><span>on arrival</span></div>
+      </div>
+      <div class="ring-copy">
+        <h3>The number that ends range anxiety.</h3>
+        <p>Northbound models your car's charge curve, the grade of every climb, HVAC draw and the wind on
+          the day — then commits to a single honest figure: the state of charge you'll actually arrive with.</p>
+        <div class="ring-row">
+          <div class="rr"><b id="rrSoc">62%</b><span>arrival SoC</span></div>
+          <div class="rr"><b>21%</b><span>reserve buffer</span></div>
+          <div class="rr"><b>±3%</b><span>model error</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== charge better: curated stops ===== -->
+  <section class="band" id="stops">
+    <div class="section-head">
+      <p class="kicker reveal">[ Charge better ]</p>
+      <h2 class="reveal">A charge stop is 20 minutes. Spend them well.</h2>
+      <p class="lede reveal">We only route you through stops we'd pull over for ourselves — fast plugs
+        next to a real reason to stand up: good coffee, a short walk, a view worth the detour.</p>
+    </div>
+
+    <div class="stopgrid reveal stagger">
+      <article class="curated">
+        <div class="curated-top">
+          <div><h3>Cascade Locks</h3><div class="curated-region mono">Columbia Gorge, OR</div></div>
+          <span class="curated-grade">A</span>
+        </div>
+        <p>350 kW pull-through stalls a two-minute walk from a gorge overlook and a roaster that opens at six.</p>
+        <div class="curated-foot">
+          <span class="curated-kw mono">350 kW · CCS/NACS</span>
+          <div class="curated-tags">
+            <span class="tag"><svg viewBox="0 0 24 24" fill="none"><path d="M4 9h12v4a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V9Zm12 1h2a2 2 0 0 1 0 4h-2M6 3v2M9 3v2M12 3v2" stroke="currentColor" stroke-width="1.4"/></svg>Coffee</span>
+            <span class="tag"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3 4 20h16L12 3Zm0 6-3 7m3-7 3 7" stroke="currentColor" stroke-width="1.4"/></svg>Trail</span>
+          </div>
+        </div>
+      </article>
+      <article class="curated">
+        <div class="curated-top">
+          <div><h3>Bend Rooftop</h3><div class="curated-region mono">High Desert, OR</div></div>
+          <span class="curated-grade">A</span>
+        </div>
+        <p>Ten stalls under a solar canopy, rooftop espresso bar above. 10–80% before your cortado goes cold.</p>
+        <div class="curated-foot">
+          <span class="curated-kw mono">300 kW · NACS</span>
+          <div class="curated-tags">
+            <span class="tag"><svg viewBox="0 0 24 24" fill="none"><path d="M4 9h12v4a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V9Zm12 1h2a2 2 0 0 1 0 4h-2M6 3v2M9 3v2M12 3v2" stroke="currentColor" stroke-width="1.4"/></svg>Coffee</span>
+            <span class="tag fast"><svg viewBox="0 0 24 24" fill="none"><path d="M13 2 4 14h7l-1 8 9-12h-7z" fill="currentColor"/></svg>Fast</span>
+          </div>
+        </div>
+      </article>
+      <article class="curated">
+        <div class="curated-top">
+          <div><h3>Newport Bayfront</h3><div class="curated-region mono">Pacific Coast, OR</div></div>
+          <span class="curated-grade">A−</span>
+        </div>
+        <p>Chargers on the working waterfront — sea lions barking below, chowder and a tide pool within the hour.</p>
+        <div class="curated-foot">
+          <span class="curated-kw mono">180 kW · CCS</span>
+          <div class="curated-tags">
+            <span class="tag"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3 4 20h16L12 3Zm0 6-3 7m3-7 3 7" stroke="currentColor" stroke-width="1.4"/></svg>Walk</span>
+            <span class="tag"><svg viewBox="0 0 24 24" fill="none"><path d="M4 9h12v4a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V9Zm12 1h2a2 2 0 0 1 0 4h-2M6 3v2M9 3v2M12 3v2" stroke="currentColor" stroke-width="1.4"/></svg>Coffee</span>
+          </div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ===== start a trip CTA (terrain shows through) ===== -->
+  <section class="start" id="start">
+    <p class="start-line reveal">Point it <em>north.</em></p>
+    <p class="reveal">Drop two pins. We'll draw the road, pick the plugs, and hand you the arrival battery —
+      before you've finished your coffee.</p>
+    <div class="start-actions reveal">
+      <a class="btn btn-primary" href="#plan">Plan your first leg</a>
+      <a class="btn btn-ghost" href="./guide/">How this was built →</a>
+    </div>
+  </section>
+</main>
+
+<!-- ===== footer ===== -->
+<footer class="footer">
+  <div class="foot-top">
+    <span class="foot-brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 2 L15 13 L12 11 L9 13 Z" fill="currentColor"/><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.4"/></svg>
+      </span>
+      Northbound
+    </span>
+    <div class="foot-links">
+      <a href="#plan">Plan</a><a href="#network">Network</a><a href="#stops">Stops</a><a href="./guide/">Guide</a>
+    </div>
+  </div>
+  <div class="foot-bottom">
+    <span>© 2026 Northbound — a design-showcase concept, not a shipping product.</span>
+    <span>Designed &amp; built by Fable · <a href="./guide/">How this was built →</a></span>
+  </div>
+</footer>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<script src="./main.js" type="module"></script>
+</body>
+</html>
