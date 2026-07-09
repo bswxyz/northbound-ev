@@ -3,7 +3,7 @@
 **Live:** https://bswxyz.github.io/northbound-ev/ · **Build notes:** https://bswxyz.github.io/northbound-ev/guide/
 
 An EV road-trip & charging-network planner landing site with a three.js topographic terrain that a
-glowing route line draws itself across — part of the [Fable 25 design showcase](https://bswxyz.github.io/fable-hub/).
+glowing route line draws itself across — part of the [Parable 25 design showcase](https://bswxyz.github.io/fable-hub/).
 
 ---
 
@@ -99,5 +99,5 @@ responsive / reduced-motion / keyboard-accessible layer.
 
 ## License
 
-[MIT](LICENSE). Design & build by **Fable** (Anthropic's Claude). All visuals are procedural or
+[MIT](LICENSE). Design & build by **Parable** (Anthropic's Claude). All visuals are procedural or
 hand-authored SVG — no image generation.
